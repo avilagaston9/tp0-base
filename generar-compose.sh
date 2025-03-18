@@ -28,7 +28,7 @@ services:
     networks:
       - testing_net
     volumes:
-      - ./server/config.ini:config.ini
+      - ./server/config.ini:/config.ini
 
 EOF
 
@@ -48,7 +48,7 @@ do
     depends_on:
       - server
     volumes:
-      - ./client/config.yaml:config.yaml
+      - ./client/config.yaml:/config.yaml
 
 EOF
 done
