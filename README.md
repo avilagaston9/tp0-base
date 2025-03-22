@@ -192,6 +192,6 @@ Para la resolución de este ejercicio se creó un script de bash que:
 ### Ejercicio N°2:
 
 Para la resolución de este ejercicio:
-- Se agregan dos archivos `.dockerignore` junto a cada `Dockerfile` para que los archivos de config no sean incluidos en la imagen, evitando que la imagen se reconstruya ante cada modificación de estos.
+- Se agrega un archivos `.dockerignore` en el root del proyecto para que los archivos de config no sean incluidos en las imagenes, evitando que se reconstruyan ante cada modificación de los mismos.
 - Para que los archivos puedan ser accedidos desde los containers, se inyectan a través de `volumes` en el `docker-compose` generado.
 - Además, para que los test pasen, fue necesario editar el script generador del ejercicio 1 debido a que este hardcodeaba el `LOG LEVEL`.
