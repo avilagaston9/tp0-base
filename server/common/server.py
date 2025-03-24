@@ -1,5 +1,6 @@
 import socket
 import logging
+import signal
 
 
 class Server:
@@ -8,6 +9,12 @@ class Server:
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._server_socket.bind(('', port))
         self._server_socket.listen(listen_backlog)
+        self._server_socket.settimeout(1)
+        self.graceful_shutdown = False
+        signal.signal(signal.SIGTERM, self.__handle_sigterm)
+
+    def __handle_sigterm(self):
+        self.graceful_shutdown = True
 
     def run(self):
         """
@@ -18,11 +25,11 @@ class Server:
         finishes, servers starts to accept new connections again
         """
 
-        # TODO: Modify this program to handle signal to graceful shutdown
         # the server
-        while True:
+        while not self.graceful_shutdown:
             client_sock = self.__accept_new_connection()
-            self.__handle_client_connection(client_sock)
+            if client_sock:
+                self.__handle_client_connection(client_sock)
 
     def __handle_client_connection(self, client_sock):
         """
@@ -33,11 +40,14 @@ class Server:
         """
         try:
             # TODO: Modify the receive to avoid short-reads
+            client_sock.settimeout(1) 
             msg = client_sock.recv(1024).rstrip().decode('utf-8')
             addr = client_sock.getpeername()
             logging.info(f'action: receive_message | result: success | ip: {addr[0]} | msg: {msg}')
             # TODO: Modify the send to avoid short-writes
             client_sock.send("{}\n".format(msg).encode('utf-8'))
+        except socket.timeout:
+            pass
         except OSError as e:
             logging.error("action: receive_message | result: fail | error: {e}")
         finally:
@@ -48,11 +58,17 @@ class Server:
         Accept new connections
 
         Function blocks until a connection to a client is made.
-        Then connection created is printed and returned
+        Then connection created is printed and returned.
+        If the timeout of 1 second is reached, returns None
         """
-
-        # Connection arrived
-        logging.info('action: accept_connections | result: in_progress')
-        c, addr = self._server_socket.accept()
-        logging.info(f'action: accept_connections | result: success | ip: {addr[0]}')
-        return c
+        try:
+            # Connection arrived
+            logging.info('action: accept_connections | result: in_progress')
+            c, addr = self._server_socket.accept()
+            logging.info(f'action: accept_connections | result: success | ip: {addr[0]}')
+            return c
+        except socket.timeout:
+            return None
+        except Exception as e:
+            logging.error(f"action: accept_connection | result: fail | error: {e}")
+        return None
