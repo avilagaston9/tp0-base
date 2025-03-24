@@ -195,3 +195,7 @@ Para la resolución de este ejercicio:
 - Se agrega un archivos `.dockerignore` en el root del proyecto para que los archivos de config no sean incluidos en las imagenes, evitando que se reconstruyan ante cada modificación de los mismos.
 - Para que los archivos puedan ser accedidos desde los containers, se inyectan a través de `volumes` en el `docker-compose` generado.
 - Además, para que los test pasen, fue necesario editar el script generador del ejercicio 1 debido a que este hardcodeaba el `LOG LEVEL`.
+
+### Ejercicio N°3:
+
+Para la resolución de este ejercicio se creo un script de bash `validar_echo_server.sh` que corre la imagen `alpine` dentro de la network `tp0_testing_net` y ejecuta el comando `echo` junto con `nc` para enviar un mensaje al servidor. Al final compara que el mensaje recibido sea exactamente igual al enviado para validar el comportamiento del servidor.
