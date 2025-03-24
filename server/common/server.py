@@ -2,6 +2,7 @@ import socket
 import logging
 import signal
 
+SOCKET_TIMEOUT = 0.5  # seconds
 
 class Server:
     def __init__(self, port, listen_backlog):
@@ -9,13 +10,14 @@ class Server:
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._server_socket.bind(('', port))
         self._server_socket.listen(listen_backlog)
-        self._server_socket.settimeout(1)
+        self._server_socket.settimeout(SOCKET_TIMEOUT)
         self.graceful_shutdown = False
         signal.signal(signal.SIGTERM, self.__handle_sigterm)
 
-    def __handle_sigterm(self):
+    def __handle_sigterm(self, signum, frame):  
+        logging.info("action: graceful_shutdown | result: in_progress")
         self.graceful_shutdown = True
-
+    
     def run(self):
         """
         Dummy Server loop
@@ -30,6 +32,10 @@ class Server:
             client_sock = self.__accept_new_connection()
             if client_sock:
                 self.__handle_client_connection(client_sock)
+        self._server_socket.close()
+        logging.info("action: close_main_socket | result: success ")
+        logging.info("action: graceful_shutdown | result: success")
+
 
     def __handle_client_connection(self, client_sock):
         """
@@ -40,7 +46,7 @@ class Server:
         """
         try:
             # TODO: Modify the receive to avoid short-reads
-            client_sock.settimeout(1) 
+            client_sock.settimeout(SOCKET_TIMEOUT)
             msg = client_sock.recv(1024).rstrip().decode('utf-8')
             addr = client_sock.getpeername()
             logging.info(f'action: receive_message | result: success | ip: {addr[0]} | msg: {msg}')
@@ -52,6 +58,7 @@ class Server:
             logging.error("action: receive_message | result: fail | error: {e}")
         finally:
             client_sock.close()
+            logging.info(f"action: close_client_socket | ip: {addr[0]} | result: success")
 
     def __accept_new_connection(self):
         """

@@ -14,6 +14,8 @@ import (
 
 var log = logging.MustGetLogger("log")
 
+const Timeout = 500 * time.Millisecond
+
 // ClientConfig Configuration used by the client
 type ClientConfig struct {
 	ID            string
@@ -40,7 +42,7 @@ func NewClient(config ClientConfig) *Client {
 		sigchan := make(chan os.Signal, 1)
 		signal.Notify(sigchan, syscall.SIGTERM)
 		<-sigchan
-		log.Infof("Gracefully shutting down...")
+		log.Infof("action: graceful_shutdown | result: in_progress | client_id: %v", config.ID)
 		close(client.gracefulShutdown)
 	}()
 	return client
@@ -50,7 +52,7 @@ func NewClient(config ClientConfig) *Client {
 // failure, error is printed in stdout/stderr and exit 1
 // is returned
 func (c *Client) createClientSocket() error {
-	conn, err := net.Dial("tcp", c.config.ServerAddress)
+	conn, err := net.DialTimeout("tcp", c.config.ServerAddress, Timeout)
 	if err != nil {
 		log.Criticalf(
 			"action: connect | result: fail | client_id: %v | error: %v",
@@ -58,7 +60,7 @@ func (c *Client) createClientSocket() error {
 			err,
 		)
 	}
-	conn.SetDeadline(time.Now().Add(1 * time.Second))
+	conn.SetDeadline(time.Now().Add(Timeout))
 	c.conn = conn
 	return nil
 }
@@ -70,7 +72,7 @@ func (c *Client) StartClientLoop() {
 	for msgID := 1; msgID <= c.config.LoopAmount; msgID++ {
 		select {
 		case <-c.gracefulShutdown:
-			log.Infof("action: graceful_shutdown | result: in_progress | client_id: %v", c.config.ID)
+			log.Infof("action: graceful_shutdown | result: success | client_id: %v", c.config.ID)
 			return
 		default:
 			// Create the connection the server in every loop iteration. Send an

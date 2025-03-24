@@ -199,3 +199,7 @@ Para la resolución de este ejercicio:
 ### Ejercicio N°3:
 
 Para la resolución de este ejercicio se creo un script de bash `validar_echo_server.sh` que corre la imagen `alpine` dentro de la network `tp0_testing_net` y ejecuta el comando `echo` junto con `nc` para enviar un mensaje al servidor. Al final compara que el mensaje recibido sea exactamente igual al enviado para validar el comportamiento del servidor.
+
+### Ejercicio N°4:
+
+Para la resolución de este ejercicio se agregaron handlers para la señal `SIGTERM`, tanto para el server como para el cliente. Dichos handlers setean una flag `graceful_shutdown` en `true`, para que  dentro del main loop se pueda chequear periódicamente si esta fue modificada. Ademas, se agregaron timeouts a los sockets tanto para leer mensajes como para aceptar conecciones. Esto fue para evitar quedar bloqueados en alguno de estos metodos y no reaccionar acordemente si la señal ya fue emitida.
