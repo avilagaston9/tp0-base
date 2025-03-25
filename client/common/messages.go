@@ -131,16 +131,16 @@ func DecodeResult(data []byte) (*Result, error) {
 		return nil, fmt.Errorf("error reading message ID: %w", err)
 	}
 
-	// Read Result (1 byte)
-	var resultByte uint8
-	if err := binary.Read(buf, binary.BigEndian, &resultByte); err != nil {
+	// Read Success (1 byte)
+	var successByte uint8
+	if err := binary.Read(buf, binary.BigEndian, &successByte); err != nil {
 		return nil, fmt.Errorf("error reading result: %w", err)
 	}
-	result := resultByte != 0
+	success := successByte != 0
 
 	return &Result{
 		MsjID:   msgID,
-		Success: result,
+		Success: success,
 	}, nil
 }
 

@@ -203,3 +203,50 @@ Para la resolución de este ejercicio se creo un script de bash `validar_echo_se
 ### Ejercicio N°4:
 
 Para la resolución de este ejercicio se agregaron handlers para la señal `SIGTERM`, tanto para el server como para el cliente. Dichos handlers setean una flag `graceful_shutdown` en `true`, para que  dentro del main loop se pueda chequear periódicamente si esta fue modificada. Ademas, se agregaron timeouts a los sockets tanto para leer mensajes como para aceptar conecciones. Esto fue para evitar quedar bloqueados en alguno de estos metodos y no reaccionar acordemente si la señal ya fue emitida.
+
+### Ejercicio N°5:
+
+Para la resolución de este ejercicio se pensó en la siguiente estructura de mensaje:
+- Tipo de mensaje: 1 byte (`Bet` o `Result`)
+- Payload: Campos concatenados en formato big-endian
+
+Se pensó de esta manera para ser capaz de almacenar mas mensajes en un futuro.
+
+#### Bet
+
+El mensaje que envía el cliente al servidor:
+
+```Go
+type Bet struct {
+	Name      string
+	Surname   string
+	Document  string
+	Birthdate string
+	Number    string
+	MsgId     uint8
+	Agency    uint8
+}
+```
+**Encodeo del mensaje:**
+
+- Strings variables (Nombre/Apellido) -> 2 bytes (longitud) + contenido UTF-8
+- Strings fijos:
+  - Documento: 8 bytes
+  - Fecha: 10 bytes (formato YYYY-MM-DD)
+  - Número: 4 bytes
+- Enteros:
+  - MsgId: 1 byte
+  - Agencia: 1 byte
+
+#### Result
+El mensaje Result es la respuesta del servidor al cliente, indicando si una apuesta fue procesada correctamente:
+
+```Go
+type Result struct {
+    MsjID   uint8  // ID del mensaje original
+    Success bool    // Resultado
+}
+```
+**Encodeo del Mensaje:**
+- MsgID: 1 byte (ID de la apuesta original)
+- Success: 1 byte (0 = falló, 1 = éxito)
