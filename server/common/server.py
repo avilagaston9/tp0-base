@@ -60,7 +60,7 @@ class Server:
             logging.error("action: receive_message | result: fail | error: {e}")
         finally:
             client_sock.close()
-            logging.info(f"action: close_client_socket | ip: {addr[0]} | result: success")
+            logging.info(f"action: close_client_socket | result: success | ip: {addr[0]}")
 
     def __accept_new_connection(self):
         """
