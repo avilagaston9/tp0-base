@@ -113,6 +113,7 @@ func main() {
 	client, err := common.NewClient(clientConfig)
 	if err != nil {
 		log.Criticalf("%s", err)
+		return
 	}
 	client.StartClientLoop()
 }
