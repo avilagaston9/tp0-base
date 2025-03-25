@@ -1,11 +1,11 @@
 package common
 
 import (
-	"bufio"
 	"fmt"
 	"net"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -29,15 +29,27 @@ type Client struct {
 	config           ClientConfig
 	conn             net.Conn
 	gracefulShutdown chan struct{}
+	bets             []*Bet
+	agency           uint8
 }
 
 // NewClient Initializes a new client receiving the configuration
 // as a parameter
-func NewClient(config ClientConfig) *Client {
+func NewClient(config ClientConfig) (*Client, error) {
+	agency, err := strconv.ParseUint(config.ID, 10, 8)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create client: %w", err)
+	}
 	client := &Client{
 		config:           config,
 		gracefulShutdown: make(chan struct{}),
+		agency:           uint8(agency),
 	}
+	bets, err := client.getBets()
+	if err != nil {
+		return nil, fmt.Errorf("unable to create client: %w", err)
+	}
+	client.bets = bets
 	go func() {
 		sigchan := make(chan os.Signal, 1)
 		signal.Notify(sigchan, syscall.SIGTERM)
@@ -45,7 +57,7 @@ func NewClient(config ClientConfig) *Client {
 		log.Infof("action: graceful_shutdown | result: in_progress | client_id: %v", config.ID)
 		close(client.gracefulShutdown)
 	}()
-	return client
+	return client, nil
 }
 
 // CreateClientSocket Initializes client socket. In case of
@@ -59,6 +71,7 @@ func (c *Client) createClientSocket() error {
 			c.config.ID,
 			err,
 		)
+		return fmt.Errorf("unable to create socket: %w", err)
 	}
 	conn.SetDeadline(time.Now().Add(Timeout))
 	c.conn = conn
@@ -67,39 +80,47 @@ func (c *Client) createClientSocket() error {
 
 // StartClientLoop Send messages to the client until some time threshold is met
 func (c *Client) StartClientLoop() {
-	// There is an autoincremental msgID to identify every message sent
-	// Messages if the message amount threshold has not been surpassed
-	for msgID := 1; msgID <= c.config.LoopAmount; msgID++ {
+	for _, bet := range c.bets {
 		select {
 		case <-c.gracefulShutdown:
 			log.Infof("action: graceful_shutdown | result: success | client_id: %v", c.config.ID)
 			return
 		default:
-			// Create the connection the server in every loop iteration. Send an
-			c.createClientSocket()
-
-			// TODO: Modify the send to avoid short-write
-			fmt.Fprintf(
-				c.conn,
-				"[CLIENT %v] Message N°%v\n",
-				c.config.ID,
-				msgID,
-			)
-			msg, err := bufio.NewReader(c.conn).ReadString('\n')
-			c.conn.Close()
-
+			err := c.createClientSocket()
 			if err != nil {
-				log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
-					c.config.ID,
-					err,
+				log.Errorf("action: apuesta_enviada | result: fail |  dni: %v | numero: %v",
+					bet.Document,
+					bet.Number,
 				)
 				return
 			}
 
-			log.Infof("action: receive_message | result: success | client_id: %v | msg: %v",
-				c.config.ID,
-				msg,
-			)
+			err = c.sendMessage(bet.Encode())
+			if err != nil {
+				log.Errorf("action: apuesta_enviada | result: fail |  dni: %v | numero: %v",
+					bet.Document,
+					bet.Number,
+				)
+				return
+			}
+			r, err := ReadResultMessage(c.conn)
+
+			if err != nil {
+				log.Errorf("action: apuesta_enviada | result: fail |  dni: %v | numero: %v",
+					bet.Document,
+					bet.Number,
+				)
+				log.Errorf("error: %v ", err)
+				return
+			}
+			c.conn.Close()
+			if r.Success {
+				log.Infof("action: apuesta_enviada | result: success |  dni: %v | numero: %v",
+					bet.Document,
+					bet.Number,
+				)
+
+			}
 
 			// Wait a time between sending one message and the next one
 			time.Sleep(c.config.LoopPeriod)
@@ -107,4 +128,31 @@ func (c *Client) StartClientLoop() {
 		}
 		log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
 	}
+}
+
+func (c *Client) sendMessage(data []byte) error {
+	totalWritten := 0
+	for totalWritten < len(data) {
+		n, err := c.conn.Write(data[totalWritten:])
+		if err != nil {
+			return fmt.Errorf("short write: %w", err)
+		}
+		totalWritten += n
+	}
+	return nil
+}
+
+func (c *Client) getBets() ([]*Bet, error) {
+	name := os.Getenv("NOMBRE")
+	surname := os.Getenv("APELLIDO")
+	document := os.Getenv("DOCUMENTO")
+	birthdate := os.Getenv("NACIMIENTO")
+	number := os.Getenv("NUMERO")
+
+	bet, err := NewBet(name, surname, document, birthdate, number, 1, c.agency)
+	if err != nil {
+		return nil, err
+	}
+
+	return []*Bet{bet}, nil
 }

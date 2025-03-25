@@ -1,6 +1,8 @@
 import socket
 import logging
 import signal
+from .messages import read_message, Result, write_result
+from .utils import store_bets, Bet as StoreBet
 
 SOCKET_TIMEOUT = 0.5  # seconds
 
@@ -45,13 +47,13 @@ class Server:
         client socket will also be closed
         """
         try:
-            # TODO: Modify the receive to avoid short-reads
             client_sock.settimeout(SOCKET_TIMEOUT)
-            msg = client_sock.recv(1024).rstrip().decode('utf-8')
             addr = client_sock.getpeername()
-            logging.info(f'action: receive_message | result: success | ip: {addr[0]} | msg: {msg}')
-            # TODO: Modify the send to avoid short-writes
-            client_sock.send("{}\n".format(msg).encode('utf-8'))
+            bet = read_message(client_sock)
+            store_bets([bet.into_store_bet()])
+            logging.info(f'action: apuesta_almacenada | result: success | dni: {bet.document} | numero: {bet.number}')
+            result = Result(bet.msg_id, True)
+            write_result(client_sock, result)
         except socket.timeout:
             pass
         except OSError as e:

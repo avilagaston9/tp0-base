@@ -110,6 +110,9 @@ func main() {
 		LoopPeriod:    v.GetDuration("loop.period"),
 	}
 
-	client := common.NewClient(clientConfig)
+	client, err := common.NewClient(clientConfig)
+	if err != nil {
+		log.Criticalf("%s", err)
+	}
 	client.StartClientLoop()
 }

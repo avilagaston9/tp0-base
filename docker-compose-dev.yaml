@@ -17,6 +17,11 @@ services:
     entrypoint: /client
     environment:
       - CLI_ID=1
+      - NOMBRE=GASTON
+      - APELLIDO=avila
+      - DOCUMENTO=41780971
+      - NACIMIENTO=1999-03-19
+      - NUMERO=9999
     networks:
       - testing_net
     depends_on:
