@@ -18,7 +18,7 @@ services:
     environment:
       - CLI_ID=1
       - NOMBRE=GASTON
-      - APELLIDO=avila
+      - APELLIDO=AVILA
       - DOCUMENTO=41780971
       - NACIMIENTO=1999-03-19
       - NUMERO=9999
