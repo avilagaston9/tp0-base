@@ -202,4 +202,5 @@ Para la resolución de este ejercicio se creo un script de bash `validar_echo_se
 
 ### Ejercicio N°4:
 
-Para la resolución de este ejercicio se agregaron handlers para la señal `SIGTERM`, tanto para el server como para el cliente. Dichos handlers setean una flag `graceful_shutdown` en `true`, para que  dentro del main loop se pueda chequear periódicamente si esta fue modificada. Ademas, se agregaron timeouts a los sockets tanto para leer mensajes como para aceptar conecciones. Esto fue para evitar quedar bloqueados en alguno de estos metodos y no reaccionar acordemente si la señal ya fue emitida.
+Para la resolución de este ejercicio se agregaron handlers para la señal `SIGTERM`, tanto para el server como para el cliente. En el `server`, el handler modifica la variable `graceful_shutdown`, la cual es periódicamente verificada por el server para saber si debe continuar o frenar. Para el `client`, se creó un `context`  que se chequea en cada iteración del main loop con un `select`.
+Ademas, se agregaron timeouts a los sockets tanto para leer/escribir mensajes como para aceptar conecciones. Esto fue para evitar quedar bloqueado en alguno de estos métodos y no reaccionar acordemente si la señal ya fue emitida.
