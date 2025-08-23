@@ -37,7 +37,7 @@ def read_bet(conn) -> Bet:
     surname_len = int.from_bytes(read_bytes(conn, 2), byteorder='big')
     surname = read_bytes(conn, surname_len).decode('utf-8')
     document = read_bytes(conn, 8).decode('utf-8')
-    birth_timestamp  = read_bytes(conn, 10).decode('utf-8')
+    birthdate  = read_bytes(conn, 10).decode('utf-8')
     number = read_bytes(conn, 4).decode('utf-8')
     msg_id = read_bytes(conn, 1)[0]
     agency = read_bytes(conn, 1)[0]
@@ -46,11 +46,20 @@ def read_bet(conn) -> Bet:
         name,
         surname,
         document,
-        birth_timestamp,
+        birthdate,
         number,
         msg_id,
         agency
     )
+
+def read_bytes(conn, num_bytes: int) -> bytes:
+    buffer = bytearray()
+    while len(buffer) < num_bytes:
+        chunk = conn.recv(num_bytes - len(buffer))
+        if not chunk:
+            raise ConnectionError("Connection closed")
+        buffer.extend(chunk)
+    return bytes(buffer)
 
 
 def write_result(conn, result: Result):
@@ -61,11 +70,4 @@ def write_result(conn, result: Result):
     )
     conn.sendall(message_bytes)
 
-def read_bytes(conn, num_bytes: int) -> bytes:
-    buffer = bytearray()
-    while len(buffer) < num_bytes:
-        chunk = conn.recv(num_bytes - len(buffer))
-        if not chunk:
-            raise ConnectionError("Connection closed")
-        buffer.extend(chunk)
-    return bytes(buffer)
+
