@@ -3,6 +3,7 @@ package common
 import (
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"os/signal"
@@ -35,6 +36,21 @@ type Client struct {
 	agency uint8
 }
 
+func getBets(agency uint8) ([]*Bet, error) {
+	name := os.Getenv("NOMBRE")
+	surname := os.Getenv("APELLIDO")
+	document := os.Getenv("DOCUMENTO")
+	birthdate := os.Getenv("NACIMIENTO")
+	number := os.Getenv("NUMERO")
+
+	bet, err := NewBet(name, surname, document, birthdate, number, 1, agency)
+	if err != nil {
+		return nil, err
+	}
+
+	return []*Bet{bet}, nil
+}
+
 // NewClient Initializes a new client receiving the configuration
 // as a parameter
 func NewClient(config ClientConfig) (*Client, error) {
@@ -43,7 +59,7 @@ func NewClient(config ClientConfig) (*Client, error) {
 		return nil, fmt.Errorf("unable to create client: %w", err)
 	}
 
-	bets, err := getBets()
+	bets, err := getBets(uint8(agency))
 	if err != nil {
 		return nil, fmt.Errorf("unable to create client: %w", err)
 	}
@@ -83,6 +99,8 @@ func (c *Client) StartClientLoop() {
 			log.Infof("action: graceful_shutdown | result: success | client_id: %v", c.config.ID)
 			return
 		default:
+			// There is an autoincremental msgID to identify every message sent
+			// Messages if the message amount threshold has not been surpassed
 			err := c.createClientSocket()
 			if err != nil {
 				log.Errorf("action: apuesta_enviada | result: fail |  dni: %v | numero: %v",
@@ -92,8 +110,6 @@ func (c *Client) StartClientLoop() {
 				return
 			}
 
-			c.conn.SetWriteDeadline(time.Now().Add(Timeout))
-
 			err = c.sendMessage(bet.Encode())
 			if err != nil {
 				log.Errorf("action: apuesta_enviada | result: fail |  dni: %v | numero: %v",
@@ -102,7 +118,7 @@ func (c *Client) StartClientLoop() {
 				)
 				return
 			}
-			r, err := ReadResultMessage(c.conn)
+			r, err := c.readResultMessage()
 
 			if err != nil {
 				log.Errorf("action: apuesta_enviada | result: fail |  dni: %v | numero: %v",
@@ -140,17 +156,13 @@ func (c *Client) sendMessage(data []byte) error {
 	return nil
 }
 
-func (c *Client) getBets() ([]*Bet, error) {
-	name := os.Getenv("NOMBRE")
-	surname := os.Getenv("APELLIDO")
-	document := os.Getenv("DOCUMENTO")
-	birthdate := os.Getenv("NACIMIENTO")
-	number := os.Getenv("NUMERO")
-
-	bet, err := NewBet(name, surname, document, birthdate, number, 1, c.agency)
-	if err != nil {
-		return nil, err
+func (c *Client) readResultMessage() (*Result, error) {
+	buf := make([]byte, 3)
+	c.conn.SetReadDeadline(time.Now().Add(Timeout))
+	if _, err := io.ReadFull(c.conn, buf); err != nil {
+		return nil, fmt.Errorf("error reading message: %w", err)
 	}
 
-	return []*Bet{bet}, nil
+	// Decode the message
+	return DecodeResult(buf)
 }
