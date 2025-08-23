@@ -27,9 +27,8 @@ class Server:
         finishes, servers starts to accept new connections again
         """
 
-        # the server
         while not self.graceful_shutdown:
-            client_sock = self.__accept_new_connection()
+            client_sock = self.__try_accept_new_connection()
             if client_sock:
                 self.__handle_client_connection(client_sock)
         self._server_socket.close()
@@ -60,13 +59,13 @@ class Server:
             client_sock.close()
             logging.info(f"action: close_client_socket | result: success | ip: {addr[0]}")
 
-    def __accept_new_connection(self):
+    def __try_accept_new_connection(self):
         """
         Accept new connections
 
         Function blocks until a connection to a client is made.
         Then connection created is printed and returned.
-        If the timeout of 1 second is reached, returns None
+        If the configured timeout is reached, returns None
         """
         try:
             # Connection arrived
