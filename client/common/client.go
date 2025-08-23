@@ -1,6 +1,7 @@
 package common
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"os"
@@ -26,11 +27,12 @@ type ClientConfig struct {
 
 // Client Entity that encapsulates how
 type Client struct {
-	config           ClientConfig
-	conn             net.Conn
-	gracefulShutdown chan struct{}
-	bets             []*Bet
-	agency           uint8
+	config ClientConfig
+	conn   net.Conn
+	ctx    context.Context
+	cancel context.CancelFunc
+	bets   []*Bet
+	agency uint8
 }
 
 // NewClient Initializes a new client receiving the configuration
@@ -40,24 +42,20 @@ func NewClient(config ClientConfig) (*Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unable to create client: %w", err)
 	}
-	client := &Client{
-		config:           config,
-		gracefulShutdown: make(chan struct{}),
-		agency:           uint8(agency),
-	}
-	bets, err := client.getBets()
+
+	bets, err := getBets()
 	if err != nil {
 		return nil, fmt.Errorf("unable to create client: %w", err)
 	}
-	client.bets = bets
-	go func() {
-		sigchan := make(chan os.Signal, 1)
-		signal.Notify(sigchan, syscall.SIGTERM)
-		<-sigchan
-		log.Infof("action: graceful_shutdown | result: in_progress | client_id: %v", config.ID)
-		close(client.gracefulShutdown)
-	}()
-	return client, nil
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM)
+	return &Client{
+		config: config,
+		ctx:    ctx,
+		cancel: stop,
+		bets:   bets,
+		agency: uint8(agency),
+	}, nil
+
 }
 
 // CreateClientSocket Initializes client socket. In case of
@@ -73,7 +71,6 @@ func (c *Client) createClientSocket() error {
 		)
 		return fmt.Errorf("unable to create socket: %w", err)
 	}
-	conn.SetDeadline(time.Now().Add(Timeout))
 	c.conn = conn
 	return nil
 }
@@ -82,7 +79,7 @@ func (c *Client) createClientSocket() error {
 func (c *Client) StartClientLoop() {
 	for _, bet := range c.bets {
 		select {
-		case <-c.gracefulShutdown:
+		case <-c.ctx.Done():
 			log.Infof("action: graceful_shutdown | result: success | client_id: %v", c.config.ID)
 			return
 		default:
@@ -94,6 +91,8 @@ func (c *Client) StartClientLoop() {
 				)
 				return
 			}
+
+			c.conn.SetWriteDeadline(time.Now().Add(Timeout))
 
 			err = c.sendMessage(bet.Encode())
 			if err != nil {
@@ -124,7 +123,6 @@ func (c *Client) StartClientLoop() {
 
 			// Wait a time between sending one message and the next one
 			time.Sleep(c.config.LoopPeriod)
-
 		}
 		log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
 	}
