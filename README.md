@@ -186,5 +186,5 @@ La corrección personal tendrá en cuenta la calidad del código entregado y cas
 Para la resolución de este ejercicio se creó un script de bash que:
 - Chequea que la cantidad de parámetros recibidos sea igual a 2.
 - Chequea que la cantidad de clientes sea un número positivo.
-- Utiliza cast para la creación del docker compose.
-- Utiliza cast + for loop para la creación de la cantidad de clientes solicitada.
+- Utiliza cat para la creación del docker compose.
+- Utiliza cat + for loop para la creación de la cantidad de clientes solicitada.
