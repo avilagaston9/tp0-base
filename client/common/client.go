@@ -2,9 +2,9 @@ package common
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"net"
-	"os"
 	"os/signal"
 	"syscall"
 	"time"
@@ -26,26 +26,21 @@ type ClientConfig struct {
 
 // Client Entity that encapsulates how
 type Client struct {
-	config           ClientConfig
-	conn             net.Conn
-	gracefulShutdown chan struct{}
+	config ClientConfig
+	conn   net.Conn
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 // NewClient Initializes a new client receiving the configuration
 // as a parameter
 func NewClient(config ClientConfig) *Client {
-	client := &Client{
-		config:           config,
-		gracefulShutdown: make(chan struct{}),
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM)
+	return &Client{
+		config: config,
+		ctx:    ctx,
+		cancel: stop,
 	}
-	go func() {
-		sigchan := make(chan os.Signal, 1)
-		signal.Notify(sigchan, syscall.SIGTERM)
-		<-sigchan
-		log.Infof("action: graceful_shutdown | result: in_progress | client_id: %v", config.ID)
-		close(client.gracefulShutdown)
-	}()
-	return client
 }
 
 // CreateClientSocket Initializes client socket. In case of
@@ -59,8 +54,8 @@ func (c *Client) createClientSocket() error {
 			c.config.ID,
 			err,
 		)
+		return err
 	}
-	conn.SetDeadline(time.Now().Add(Timeout))
 	c.conn = conn
 	return nil
 }
@@ -71,7 +66,7 @@ func (c *Client) StartClientLoop() {
 	// Messages if the message amount threshold has not been surpassed
 	for msgID := 1; msgID <= c.config.LoopAmount; msgID++ {
 		select {
-		case <-c.gracefulShutdown:
+		case <-c.ctx.Done():
 			log.Infof("action: graceful_shutdown | result: success | client_id: %v", c.config.ID)
 			return
 		default:
@@ -79,12 +74,24 @@ func (c *Client) StartClientLoop() {
 			c.createClientSocket()
 
 			// TODO: Modify the send to avoid short-write
-			fmt.Fprintf(
+			c.conn.SetWriteDeadline(time.Now().Add(Timeout))
+
+			_, err := fmt.Fprintf(
 				c.conn,
 				"[CLIENT %v] Message N°%v\n",
 				c.config.ID,
 				msgID,
 			)
+
+			if err != nil {
+				log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
+					c.config.ID,
+					err,
+				)
+				return
+			}
+
+			c.conn.SetReadDeadline(time.Now().Add(Timeout))
 			msg, err := bufio.NewReader(c.conn).ReadString('\n')
 			c.conn.Close()
 
@@ -103,7 +110,6 @@ func (c *Client) StartClientLoop() {
 
 			// Wait a time between sending one message and the next one
 			time.Sleep(c.config.LoopPeriod)
-
 		}
 		log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
 	}
