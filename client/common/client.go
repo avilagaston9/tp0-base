@@ -99,8 +99,6 @@ func (c *Client) StartClientLoop() {
 			log.Infof("action: graceful_shutdown | result: success | client_id: %v", c.config.ID)
 			return
 		default:
-			// There is an autoincremental msgID to identify every message sent
-			// Messages if the message amount threshold has not been surpassed
 			err := c.createClientSocket()
 			if err != nil {
 				log.Errorf("action: apuesta_enviada | result: fail |  dni: %v | numero: %v",
