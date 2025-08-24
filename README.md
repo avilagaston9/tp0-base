@@ -207,15 +207,11 @@ Ademas, se agregaron timeouts a los sockets tanto para leer/escribir mensajes co
 
 ### Ejercicio N°5:
 
-Para la resolución de este ejercicio se pensó en la siguiente estructura de mensaje:
-- Tipo de mensaje: 1 byte (`Bet` o `Result`)
-- Payload: Campos concatenados en formato big-endian
-
-Se pensó de esta manera para ser capaz de almacenar mas mensajes en un futuro.
+Para este ejercicio se definieron dos tipos de mensaje:
 
 #### Bet
 
-El mensaje que envía el cliente al servidor:
+Mensaje enviado por el cliente al servidor para registrar una apuesta:
 
 ```Go
 type Bet struct {
@@ -228,26 +224,35 @@ type Bet struct {
 	Agency    uint8
 }
 ```
-**Encodeo del mensaje:**
 
-- Strings variables (Nombre/Apellido) -> 2 bytes (longitud) + contenido UTF-8
-- Strings fijos:
-  - Documento: 8 bytes
-  - Fecha: 10 bytes (formato YYYY-MM-DD)
-  - Número: 4 bytes
+**Formato de serialización:**
+
+- Strings variables (Nombre, Apellido): 2 bytes indicando longitud + contenido en UTF-8  
+- Strings de longitud fija:
+  - Documento: 8 bytes  
+  - Fecha de nacimiento: 10 bytes (`YYYY-MM-DD`)  
+  - Número apostado: 4 bytes  
 - Enteros:
-  - MsgId: 1 byte
-  - Agencia: 1 byte
+  - MsgId: 1 byte  
+  - Agency: 1 byte  
 
 #### Result
-El mensaje Result es la respuesta del servidor al cliente, indicando si una apuesta fue procesada correctamente:
+
+Mensaje de respuesta del servidor indicando si la apuesta se procesó correctamente:
 
 ```Go
 type Result struct {
-    MsjID   uint8  // ID del mensaje original
-    Success bool    // Resultado
+    MsgID   uint8  // ID del mensaje Bet original
+    Success bool   // Resultado de la apuesta
 }
 ```
-**Encodeo del Mensaje:**
-- MsgID: 1 byte (ID de la apuesta original)
-- Success: 1 byte (0 = falló, 1 = éxito)
+
+**Formato de serialización:**
+
+- MsgID: 1 byte (correspondiente a la apuesta)  
+- Success: 1 byte (`0 = fallo`, `1 = éxito`)
+
+### Escalabilidad
+
+Cada mensaje se precede con 1 byte que indica su tipo (`0 = Bet`, `1 = Result`), lo que permite agregar nuevos tipos de mensajes en el futuro sin modificar las estructuras existentes.
+
