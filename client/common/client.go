@@ -177,7 +177,8 @@ func (c *Client) StartClientLoop() {
 			}
 		}
 	}
-	log.Infof("action: exit | result: success | client_id: %v", c.config.ID)
+	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
+	c.cancel()
 }
 
 func (c *Client) sendMessage(data []byte) error {
