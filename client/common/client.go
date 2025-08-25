@@ -178,7 +178,8 @@ func (c *Client) StartClientLoop() {
 		}
 	}
 	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
-	c.cancel()
+	// Sleeping to let the container print the exit log
+	time.Sleep(100 * time.Millisecond)
 }
 
 func (c *Client) sendMessage(data []byte) error {
