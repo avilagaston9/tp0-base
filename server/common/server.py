@@ -98,7 +98,7 @@ def process_bet(bet) -> bool:
 
 def process_batch(batch) -> bool:
     store_bets(batch.bets)
-    logging.info(f"action: apuesta_almacenada | result: success | cantidad: {len(batch.bets)}")
+    logging.info(f"action: apuesta_recibida | result: success | cantidad: {len(batch.bets)}")
     return True
     
 
