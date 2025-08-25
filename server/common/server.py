@@ -1,7 +1,7 @@
 import socket
 import logging
 import signal
-from .messages import read_message, Result, write_result
+from .messages import read_message, Result, write_result, Bet, Batch, MessageType
 from .utils import store_bets, Bet as StoreBet
 
 SOCKET_TIMEOUT = 0.5  # seconds
@@ -37,30 +37,6 @@ class Server:
         logging.info("action: close_main_socket | result: success ")
         logging.info("action: graceful_shutdown | result: success")
 
-
-    def __handle_client_connection(self, client_sock):
-        """
-        Read message from a specific client socket and closes the socket
-
-        If a problem arises in the communication with the client, the
-        client socket will also be closed
-        """
-        try:
-            client_sock.settimeout(SOCKET_TIMEOUT)
-            addr = client_sock.getpeername()
-            bet = read_message(client_sock)
-            store_bets([bet.into_store_bet()])
-            logging.info(f'action: apuesta_almacenada | result: success | dni: {bet.document} | numero: {bet.number}')
-            result = Result(bet.msg_id, True)
-            write_result(client_sock, result)
-        except socket.timeout:
-            pass
-        except OSError as e:
-            logging.error("action: receive_message | result: fail | error: {e}")
-        finally:
-            client_sock.close()
-            logging.info(f"action: close_client_socket | result: success | ip: {addr[0]}")
-
     def __try_accept_new_connection(self):
         """
         Accept new connections
@@ -80,3 +56,51 @@ class Server:
         except Exception as e:
             logging.error(f"action: accept_connection | result: fail | error: {e}")
         return None
+
+
+    def __handle_client_connection(self, client_sock):
+        """
+        Read message from a specific client socket and closes the socket
+
+        If a problem arises in the communication with the client, the
+        client socket will also be closed
+        """
+        try:
+            client_sock.settimeout(SOCKET_TIMEOUT)
+            addr = client_sock.getpeername()
+            msg_id, msg = read_message(client_sock)
+            result = handle_message(msg_id, msg)
+            write_result(client_sock, result)
+        except socket.timeout:
+            pass
+        except OSError as e:
+            logging.error("action: receive_message | result: fail | error: {e}")
+        finally:
+            client_sock.close()
+            logging.info(f"action: close_client_socket | result: success | ip: {addr[0]}")
+
+def handle_message(msg_id, msg) -> Result:
+    if isinstance(msg, Bet):
+        # Process single bet
+        success =  process_bet(msg)
+        return Result(msg_id, success)
+    elif isinstance(msg, Batch):
+        # Process batch of bets
+        success = process_batch(msg)
+        return Result(msg_id, success)
+    else:
+        logging.error(f"action: apuesta_almacenada | result: fail | error: Unexpected message type {type(msg)}")
+
+def process_bet(bet) -> bool:
+        store_bets([bet.into_store_bet()])
+        logging.info(f'action: apuesta_almacenada | result: success | dni: {bet.document} | numero: {bet.number}')
+        return True
+
+def process_batch(batch) -> bool:
+    store_bets(batch.bets)
+    logging.info(f"action: apuesta_almacenada | result: success | cantidad: {len(batch.bets)}")
+    return True
+    
+
+    
+

@@ -2,8 +2,10 @@ package common
 
 import (
 	"context"
+	"encoding/csv"
 	"fmt"
 	"io"
+	"math/rand"
 	"net"
 	"os"
 	"os/signal"
@@ -20,35 +22,77 @@ const Timeout = 500 * time.Millisecond
 
 // ClientConfig Configuration used by the client
 type ClientConfig struct {
-	ID            string
-	ServerAddress string
-	LoopAmount    int
-	LoopPeriod    time.Duration
+	ID             string
+	ServerAddress  string
+	LoopAmount     int
+	LoopPeriod     time.Duration
+	BatchMaxAmount int
 }
 
 // Client Entity that encapsulates how
 type Client struct {
-	config ClientConfig
-	conn   net.Conn
-	ctx    context.Context
-	cancel context.CancelFunc
-	bets   []*Bet
-	agency uint8
+	config  ClientConfig
+	conn    net.Conn
+	ctx     context.Context
+	cancel  context.CancelFunc
+	agency  uint8
+	batches []*Batch
 }
 
 func getBets(agency uint8) ([]*Bet, error) {
-	name := os.Getenv("NOMBRE")
-	surname := os.Getenv("APELLIDO")
-	document := os.Getenv("DOCUMENTO")
-	birthdate := os.Getenv("NACIMIENTO")
-	number := os.Getenv("NUMERO")
+	filePath := fmt.Sprintf(".data/agency-%d.csv", agency)
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open file %s: %w", filePath, err)
+	}
+	defer file.Close()
 
-	bet, err := NewBet(name, surname, document, birthdate, number, 1, agency)
+	// Read the CSV
+	reader := csv.NewReader(file)
+	records, err := reader.ReadAll()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read CSV: %w", err)
+	}
+
+	// Parse each row into a Bet
+	var bets []*Bet
+	for _, record := range records {
+		if len(record) != 5 {
+			return nil, fmt.Errorf("invalid record length: %v", record)
+		}
+		name, surname, document, birthdate, number := record[0], record[1], record[2], record[3], record[4]
+
+		bet, err := NewBet(name, surname, document, birthdate, number, agency)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create bet: %w", err)
+		}
+		bets = append(bets, bet)
+	}
+
+	return bets, nil
+}
+
+func getBatches(agency uint8, batchMaxAmount int) ([]*Batch, error) {
+	bets, err := getBets(agency)
 	if err != nil {
 		return nil, err
 	}
 
-	return []*Bet{bet}, nil
+	var batches []*Batch
+	for i := 0; i < len(bets); i += batchMaxAmount {
+		end := i + batchMaxAmount
+		if end > len(bets) {
+			end = len(bets)
+		}
+
+		batch := &Batch{
+			Bets: bets[i:end],
+		}
+		batches = append(batches, batch)
+	}
+
+	return batches, nil
+
 }
 
 // NewClient Initializes a new client receiving the configuration
@@ -59,19 +103,18 @@ func NewClient(config ClientConfig) (*Client, error) {
 		return nil, fmt.Errorf("unable to create client: %w", err)
 	}
 
-	bets, err := getBets(uint8(agency))
+	batches, err := getBatches(uint8(agency), config.BatchMaxAmount)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create client: %w", err)
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM)
 	return &Client{
-		config: config,
-		ctx:    ctx,
-		cancel: stop,
-		bets:   bets,
-		agency: uint8(agency),
+		config:  config,
+		ctx:     ctx,
+		cancel:  stop,
+		batches: batches,
+		agency:  uint8(agency),
 	}, nil
-
 }
 
 // CreateClientSocket Initializes client socket. In case of
@@ -91,9 +134,8 @@ func (c *Client) createClientSocket() error {
 	return nil
 }
 
-// StartClientLoop Send messages to the client until some time threshold is met
 func (c *Client) StartClientLoop() {
-	for _, bet := range c.bets {
+	for i, batch := range c.batches {
 		select {
 		case <-c.ctx.Done():
 			log.Infof("action: graceful_shutdown | result: success | client_id: %v", c.config.ID)
@@ -101,42 +143,38 @@ func (c *Client) StartClientLoop() {
 		default:
 			err := c.createClientSocket()
 			if err != nil {
-				log.Errorf("action: apuesta_enviada | result: fail |  dni: %v | numero: %v",
-					bet.Document,
-					bet.Number,
+				log.Errorf("action: apuesta_enviada | result: fail | agency: %v | batch_number: %v",
+					c.agency,
+					i,
 				)
 				return
 			}
 
-			err = c.sendMessage(bet.Encode())
+			err = c.sendMessage(batch.ToMessageBytes(uint8(rand.Intn(256))))
 			if err != nil {
-				log.Errorf("action: apuesta_enviada | result: fail |  dni: %v | numero: %v",
-					bet.Document,
-					bet.Number,
+				log.Errorf("action: apuesta_enviada | result: fail | agency: %v | batch_number: %v",
+					c.agency,
+					i,
 				)
 				return
 			}
 			r, err := c.readResultMessage()
 
 			if err != nil {
-				log.Errorf("action: apuesta_enviada | result: fail |  dni: %v | numero: %v",
-					bet.Document,
-					bet.Number,
+				log.Errorf("action: apuesta_enviada | result: fail | agency: %v | batch_number: %v",
+					c.agency,
+					i,
 				)
 				log.Errorf("error: %v ", err)
 				return
 			}
 			c.conn.Close()
 			if r.Success {
-				log.Infof("action: apuesta_enviada | result: success |  dni: %v | numero: %v",
-					bet.Document,
-					bet.Number,
+				log.Errorf("action: apuesta_enviada | result: success | agency: %v | batch_number: %v",
+					c.agency,
+					i,
 				)
-
 			}
-
-			// Wait a time between sending one message and the next one
-			time.Sleep(c.config.LoopPeriod)
 		}
 		log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
 	}

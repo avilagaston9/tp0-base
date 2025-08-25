@@ -52,6 +52,7 @@ do
       - server
     volumes:
       - ./client/config.yaml:/config.yaml
+      - ./.data:/.data
 
 EOF
 done
