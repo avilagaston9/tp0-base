@@ -24,6 +24,7 @@ services:
     entrypoint: python3 /main.py
     environment:
       - PYTHONUNBUFFERED=1
+      - AGENCY_COUNT=$NUM_CLIENTS
     networks:
       - testing_net
     volumes:
@@ -40,12 +41,7 @@ do
     image: client:latest
     entrypoint: /client
     environment:
-      - CLI_ID=$i
-      - NOMBRE=\${NOMBRE:-GASTON}
-      - APELLIDO=\${APELLIDO:-AVILA}
-      - DOCUMENTO=\${DOCUMENTO:-41780971}
-      - NACIMIENTO=\${NACIMIENTO:-1999-03-19}
-      - NUMERO=\${NUMERO:-9999}
+      - CLI_ID=$if
     networks:
       - testing_net
     depends_on:

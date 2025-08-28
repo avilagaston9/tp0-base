@@ -4,10 +4,9 @@ import signal
 from .messages import read_message, Result, write_result, Bet, Batch, Finished, Winners, NotReady
 from .utils import store_bets, load_bets, has_won
 SOCKET_TIMEOUT = 0.5  # seconds
-AGENCY_COUNT = 3
 
 class Server:
-    def __init__(self, port, listen_backlog):
+    def __init__(self, port, listen_backlog, agency_count):
         # Initialize server socket
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._server_socket.bind(('', port))
@@ -15,6 +14,7 @@ class Server:
         self._server_socket.settimeout(SOCKET_TIMEOUT)
         self._finished_agencies: set[int] = set()
         self.graceful_shutdown = False
+        self._agency_count = agency_count
         signal.signal(signal.SIGTERM, self.__handle_sigterm)
 
     def __handle_sigterm(self, signum, frame):  
@@ -97,7 +97,7 @@ class Server:
     # TODO: Send msgId
     def _process_finished_agency(self, client_sock, agency):
         self._finished_agencies.add(agency)
-        if len(self._finished_agencies) == AGENCY_COUNT:
+        if len(self._finished_agencies) == self._agency_count:
             logging.info("action: sorteo | result: success")
             winner_documents = get_winner_documents(agency)
             client_sock.sendall(winner_documents.to_bytes())
