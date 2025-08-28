@@ -41,7 +41,7 @@ do
     image: client:latest
     entrypoint: /client
     environment:
-      - CLI_ID=$if
+      - CLI_ID=$i
     networks:
       - testing_net
     depends_on:
