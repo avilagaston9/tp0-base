@@ -1,13 +1,15 @@
 import socket
 import logging
 import signal
+import threading
 from .messages import read_message, Result, write_result, Bet, Batch, Finished, Winners, NotReady
 from .utils import store_bets, load_bets, has_won
 SOCKET_TIMEOUT = 0.5  # seconds
 
+bets_lock = threading.Lock()
+
 class Server:
     def __init__(self, port, listen_backlog, agency_count):
-        # Initialize server socket
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._server_socket.bind(('', port))
         self._server_socket.listen(listen_backlog)
@@ -22,32 +24,20 @@ class Server:
         self.graceful_shutdown = True
     
     def run(self):
-        """
-        Dummy Server loop
-
-        Server that accept a new connections and establishes a
-        communication with a client. After client with communucation
-        finishes, servers starts to accept new connections again
-        """
-
         while not self.graceful_shutdown:
             client_sock = self.__try_accept_new_connection()
             if client_sock:
-                self.__handle_client_connection(client_sock)
+                threading.Thread(
+                    target=self.__handle_client_connection, 
+                    args=(client_sock),
+                    daemon=True
+                ).start()
         self._server_socket.close()
         logging.info("action: close_main_socket | result: success ")
         logging.info("action: graceful_shutdown | result: success")
 
     def __try_accept_new_connection(self):
-        """
-        Accept new connections
-
-        Function blocks until a connection to a client is made.
-        Then connection created is printed and returned.
-        If the configured timeout is reached, returns None
-        """
         try:
-            # Connection arrived
             logging.info('action: accept_connections | result: in_progress')
             c, addr = self._server_socket.accept()
             logging.info(f'action: accept_connections | result: success | ip: {addr[0]}')
@@ -58,14 +48,7 @@ class Server:
             logging.error(f"action: accept_connection | result: fail | error: {e}")
         return None
 
-
     def __handle_client_connection(self, client_sock):
-        """
-        Read message from a specific client socket and closes the socket
-
-        If a problem arises in the communication with the client, the
-        client socket will also be closed
-        """
         try:
             client_sock.settimeout(SOCKET_TIMEOUT)
             addr = client_sock.getpeername()
@@ -108,20 +91,19 @@ class Server:
 
 
 def process_bet(bet) -> bool:
+    with bets_lock:
         store_bets([bet.into_store_bet()])
-        logging.info(f'action: apuesta_almacenada | result: success | dni: {bet.document} | numero: {bet.number}')
-        return True
+    logging.info(f'action: apuesta_almacenada | result: success | dni: {bet.document} | numero: {bet.number}')
+    return True
 
 def process_batch(batch) -> bool:
-    store_bets(batch.bets)
+    with bets_lock:
+        store_bets(batch.bets)
     logging.info(f"action: apuesta_recibida | result: success | cantidad: {len(batch.bets)}")
     return True
     
 def get_winner_documents(agency) -> Winners:
-    bets = load_bets()
+    with bets_lock:
+        bets = load_bets()
     winners_documents = [int(bet.document) for bet in bets if has_won(bet) and bet.agency == agency]
-    return Winners(winners_documents);
-
-
-    
-
+    return Winners(winners_documents)
