@@ -29,7 +29,7 @@ class Server:
             if client_sock:
                 threading.Thread(
                     target=self.__handle_client_connection, 
-                    args=(client_sock),
+                    args=(client_sock,),
                     daemon=True
                 ).start()
         self._server_socket.close()
