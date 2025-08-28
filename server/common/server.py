@@ -4,7 +4,7 @@ import signal
 from .messages import read_message, Result, write_result, Bet, Batch, Finished, Winners, NotReady
 from .utils import store_bets, load_bets, has_won
 SOCKET_TIMEOUT = 0.5  # seconds
-AGENCY_COUNT = 5  
+AGENCY_COUNT = 3
 
 class Server:
     def __init__(self, port, listen_backlog):
