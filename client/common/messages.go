@@ -23,15 +23,14 @@ const (
 	TypeBet MessageType = iota
 	TypeResult
 	TypeBatch
+	TypeFinished
+	TypeNotReady
+	TypeWinners
 )
 
 type Message interface {
 	Type() MessageType
 }
-
-func (b Bet) Type() MessageType    { return TypeBet }
-func (b Batch) Type() MessageType  { return TypeBatch }
-func (r Result) Type() MessageType { return TypeResult }
 
 type Bet struct {
 	Name      string
@@ -50,6 +49,16 @@ type Result struct {
 	MsjID   uint8
 	Success bool
 }
+
+type Finished struct {
+	Agency uint8
+}
+
+type Winners struct {
+	Documents []uint32
+}
+
+type NotReady struct{}
 
 func NewBet(name string, surname string, doc string, birthdate string, num string, agency uint8) (*Bet, error) {
 	if err := ValidateName(name, surname); err != nil {
@@ -188,4 +197,25 @@ func DecodeResult(data []byte) (*Result, error) {
 		MsjID:   msgID,
 		Success: success,
 	}, nil
+}
+
+func NewFinished(agency uint8) *Finished {
+	return &Finished{
+		Agency: agency,
+	}
+}
+
+func (f *Finished) ToMessageBytes(msgId uint8) []byte {
+	buf := new(bytes.Buffer)
+
+	// MsgID (1 byte)
+	binary.Write(buf, binary.BigEndian, msgId)
+
+	// Message type
+	binary.Write(buf, binary.BigEndian, TypeFinished)
+
+	// Agency (1 byte)
+	binary.Write(buf, binary.BigEndian, f.Agency)
+
+	return buf.Bytes()
 }

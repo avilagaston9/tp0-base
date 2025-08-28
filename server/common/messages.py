@@ -9,6 +9,9 @@ class MessageType:
     BET = 0
     RESULT = 1
     BATCH = 2
+    FINISHED = 3
+    NOT_READY = 4
+    WINNERS = 5
 
 class Batch(Message):
     def __init__(self, bets):
@@ -33,6 +36,27 @@ class Result(Message):
         self.msg_id = msg_id
         self.success = success
 
+class Finished(Message):
+    def __init__(self, agency):
+        self.agency = agency
+
+class NotReady(Message):
+    def to_bytes(self) -> bytes:
+        return bytes([MessageType.NOT_READY])
+
+class Winners(Message):
+    def __init__(self, documents):
+        self.documents = documents
+    
+    def to_bytes(self) -> bytes:
+        result = bytearray()
+        result.append(MessageType.WINNERS)
+        result.extend(len(self.documents).to_bytes(2, byteorder='big'))
+        for doc in self.documents:
+            result.extend(doc.to_bytes(4, byteorder='big'))
+        return bytes(result)
+
+
 def read_message(conn):
     msg_id = read_bytes(conn, 1)[0]
     msg_type = read_bytes(conn, 1)[0]
@@ -40,6 +64,8 @@ def read_message(conn):
         return msg_id, read_bet(conn)
     elif msg_type == MessageType.BATCH:
         return msg_id, read_batch(conn)
+    elif msg_type == MessageType.FINISHED:
+        return msg_id, read_finished(conn)
     else:
         raise ValueError(f"Unknown message type: {msg_type}")
 
@@ -70,6 +96,10 @@ def read_bet(conn) -> Bet:
         number,
         agency
     )
+
+def read_finished(conn) -> Finished:
+    agency = int.from_bytes(read_bytes(conn, 1), byteorder='big')
+    return Finished(agency)
 
 def read_bytes(conn, num_bytes: int) -> bytes:
     buffer = bytearray()

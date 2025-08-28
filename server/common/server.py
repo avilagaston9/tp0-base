@@ -1,10 +1,10 @@
 import socket
 import logging
 import signal
-from .messages import read_message, Result, write_result, Bet, Batch, MessageType
-from .utils import store_bets, Bet as StoreBet
-
+from .messages import read_message, Result, write_result, Bet, Batch, Finished, Winners, NotReady
+from .utils import store_bets, load_bets, has_won
 SOCKET_TIMEOUT = 0.5  # seconds
+AGENCY_COUNT = 5  
 
 class Server:
     def __init__(self, port, listen_backlog):
@@ -13,6 +13,7 @@ class Server:
         self._server_socket.bind(('', port))
         self._server_socket.listen(listen_backlog)
         self._server_socket.settimeout(SOCKET_TIMEOUT)
+        self._finished_agencies: set[int] = set()
         self.graceful_shutdown = False
         signal.signal(signal.SIGTERM, self.__handle_sigterm)
 
@@ -69,8 +70,7 @@ class Server:
             client_sock.settimeout(SOCKET_TIMEOUT)
             addr = client_sock.getpeername()
             msg_id, msg = read_message(client_sock)
-            result = handle_message(msg_id, msg)
-            write_result(client_sock, result)
+            self.handle_message(msg_id, msg, client_sock)
         except socket.timeout:
             pass
         except OSError as e:
@@ -79,17 +79,33 @@ class Server:
             client_sock.close()
             logging.info(f"action: close_client_socket | result: success | ip: {addr[0]}")
 
-def handle_message(msg_id, msg) -> Result:
-    if isinstance(msg, Bet):
-        # Process single bet
-        success =  process_bet(msg)
-        return Result(msg_id, success)
-    elif isinstance(msg, Batch):
-        # Process batch of bets
-        success = process_batch(msg)
-        return Result(msg_id, success)
-    else:
-        logging.error(f"action: apuesta_almacenada | result: fail | error: Unexpected message type {type(msg)}")
+    def handle_message(self, msg_id, msg, client_sock) -> Result:
+        if isinstance(msg, Bet):
+            # Process single bet
+            success =  process_bet(msg)
+            write_result(client_sock, Result(msg_id, success))
+        elif isinstance(msg, Batch):
+            # Process batch of bets
+            success = process_batch(msg)
+            write_result(client_sock, Result(msg_id, success))
+        elif isinstance(msg, Finished):
+            logging.info(f"action: agencia_finalizada | result: success | agency: {msg.agency}")
+            self._process_finished_agency(client_sock, msg.agency)
+        else:
+            logging.error(f"action: apuesta_almacenada | result: fail | error: Unexpected message type {type(msg)}")
+
+    # TODO: Send msgId
+    def _process_finished_agency(self, client_sock, agency):
+        self._finished_agencies.add(agency)
+        if len(self._finished_agencies) == AGENCY_COUNT:
+            logging.info("action: sorteo | result: success")
+            winner_documents = get_winner_documents(agency)
+            client_sock.sendall(winner_documents.to_bytes())
+        else:
+            logging.info(f"action: sorteo | result: in_progress | agencias_finalizadas: {len(self._finished_agencies)}")
+            client_sock.sendall(NotReady().to_bytes())
+
+
 
 def process_bet(bet) -> bool:
         store_bets([bet.into_store_bet()])
@@ -101,6 +117,11 @@ def process_batch(batch) -> bool:
     logging.info(f"action: apuesta_recibida | result: success | cantidad: {len(batch.bets)}")
     return True
     
+def get_winner_documents(agency) -> Winners:
+    bets = load_bets()
+    winners_documents = [int(bet.document) for bet in bets if has_won(bet) and bet.agency == agency]
+    return Winners(winners_documents);
+
 
     
 

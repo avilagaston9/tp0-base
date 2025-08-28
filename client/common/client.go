@@ -2,6 +2,7 @@ package common
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/csv"
 	"fmt"
 	"io"
@@ -178,6 +179,12 @@ func (c *Client) StartClientLoop() {
 		}
 	}
 	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
+
+	// TODO: Check context cancellation
+	c.sendFinishedMessage()
+
+	c.requestWinners()
+
 	// Sleeping to let the container print the exit log
 	time.Sleep(100 * time.Millisecond)
 }
@@ -203,4 +210,107 @@ func (c *Client) readResultMessage() (*Result, error) {
 
 	// Decode the message
 	return DecodeResult(buf)
+}
+
+func (c *Client) sendFinishedMessage() {
+
+	c.conn.Close()
+	log.Infof("action: envio_fin | result: success | agency: %v",
+		c.agency,
+	)
+}
+
+func (c *Client) requestWinners() {
+	finished := NewFinished(c.agency)
+
+	notReady := true
+	var winners *Winners
+
+	for notReady {
+		select {
+		case <-c.ctx.Done():
+			log.Infof("action: graceful_shutdown | result: success | client_id: %v", c.config.ID)
+			return
+		default:
+			err := c.createClientSocket()
+			if err != nil {
+				log.Errorf("action: envio_fin | result: fail | agency: %v | error: %v",
+					c.agency,
+					err,
+				)
+				return
+			}
+			err = c.sendMessage(finished.ToMessageBytes(uint8(rand.Intn(256))))
+			if err != nil {
+				log.Errorf("action: envio_fin | result: fail | agency: %v | error: %v",
+					c.agency,
+					err,
+				)
+				return
+			}
+			notReady, winners, err = c.readWinnersResponse()
+			if err != nil {
+				log.Errorf("action: consulta_ganadores | result: fail | agency: %v | error: %v",
+					c.agency,
+					err,
+				)
+				c.conn.Close()
+				return
+			}
+			c.conn.Close()
+		}
+	}
+	log.Infof("action: consulta_ganadores | result: success  | cant_ganadores: %v",
+		len(winners.Documents),
+	)
+}
+
+func (c *Client) readWinnersResponse() (bool, *Winners, error) {
+	// Read message type (1 byte)
+	var msgType MessageType
+	c.conn.SetReadDeadline(time.Now().Add(Timeout))
+	if err := binary.Read(c.conn, binary.BigEndian, &msgType); err != nil {
+		return false, nil, fmt.Errorf("error reading message type: %w", err)
+	}
+
+	switch msgType {
+	case TypeWinners:
+		w, err := c.readWinnersMessage()
+		if err != nil {
+			return false, nil, err
+		}
+		return false, w, nil
+
+	case TypeNotReady:
+		return true, nil, nil
+
+	default:
+		return true, nil, fmt.Errorf("invalid message type: expected %d or %d, got %d", TypeWinners, TypeNotReady, msgType)
+	}
+}
+
+func (c *Client) readWinnersMessage() (*Winners, error) {
+	// Read winners_count (uint16)
+	c.conn.SetReadDeadline(time.Now().Add(Timeout))
+	var countBuf [2]byte
+	if _, err := io.ReadFull(c.conn, countBuf[:]); err != nil {
+		return nil, fmt.Errorf("error reading winners count: %w", err)
+	}
+	winners_count := binary.BigEndian.Uint16(countBuf[:])
+
+	// Read `count` documents
+	winners := &Winners{
+		Documents: make([]uint32, 0, winners_count),
+	}
+
+	var docBuf [4]byte
+	for i := 0; i < int(winners_count); i++ {
+		if _, err := io.ReadFull(c.conn, docBuf[:]); err != nil {
+			return nil, fmt.Errorf("error reading document %d: %w", i, err)
+		}
+		doc := binary.BigEndian.Uint32(docBuf[:])
+		winners.Documents = append(winners.Documents, doc)
+	}
+
+	return winners, nil
 }
