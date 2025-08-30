@@ -180,9 +180,6 @@ func (c *Client) StartClientLoop() {
 	}
 	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
 
-	// TODO: Check context cancellation
-	c.sendFinishedMessage()
-
 	c.requestWinners()
 
 	// Sleeping to let the container print the exit log
@@ -210,14 +207,6 @@ func (c *Client) readResultMessage() (*Result, error) {
 
 	// Decode the message
 	return DecodeResult(buf)
-}
-
-func (c *Client) sendFinishedMessage() {
-
-	c.conn.Close()
-	log.Infof("action: envio_fin | result: success | agency: %v",
-		c.agency,
-	)
 }
 
 func (c *Client) requestWinners() {
