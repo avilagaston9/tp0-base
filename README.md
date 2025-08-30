@@ -211,30 +211,28 @@ Para este ejercicio se definieron dos tipos de mensaje:
 
 #### Bet
 
-Mensaje enviado por el cliente al servidor para registrar una apuesta:
+Mensaje que el cliente envía al servidor para registrar una apuesta:
 
 ```Go
 type Bet struct {
 	Name      string
 	Surname   string
-	Document  string
+	Document  uint32
 	Birthdate string
-	Number    string
-	MsgId     uint8
+	Number    uint32
 	Agency    uint8
 }
-```
 
 **Formato de serialización:**
 
-- Strings variables (Nombre, Apellido): 2 bytes indicando longitud + contenido en UTF-8  
+- Strings variables (Nombre, Apellido): 1 byte indicando longitud + contenido en UTF-8  
 - Strings de longitud fija:
-  - Documento: 8 bytes  
   - Fecha de nacimiento: 10 bytes (`YYYY-MM-DD`)  
-  - Número apostado: 4 bytes  
 - Enteros:
-  - MsgId: 1 byte  
-  - Agency: 1 byte  
+  - Documento: uint32 big-endian
+  - Número apostado: uint32 big-endian
+  - Agency: 1 byte
+
 
 #### Result
 
@@ -254,5 +252,36 @@ type Result struct {
 
 ### Escalabilidad
 
-Cada mensaje se precede con 1 byte que indica su tipo (`0 = Bet`, `1 = Result`), lo que permite agregar nuevos tipos de mensajes en el futuro sin modificar las estructuras existentes.
+Cada mensaje se precede con 1 byte que indica su tipo (0 = Bet, 1 = Result), lo que permite agregar nuevos tipos de mensajes en el futuro sin alterar las estructuras existentes.
+El mensaje Bet incluye además un uint8 al inicio para indicar el msgId.
 
+### Ejercicio N°6:
+
+Para resolver este ejercicio:
+
+1. Se creó un nuevo tipo de mensaje `Batch`:
+```Go
+type Batch struct {
+	Bets []*Bet
+}
+```
+Su serialización consiste en:
+
+- 2 bytes para indicar la cantidad de bets que contiene.
+- Todas las bets concatenadas, serializadas como indica el ejercicio anterior.
+
+Tal como para el mensaje `Bet`, el mensaje `Batch` va precesido por 1 byte indicando el `MsgId` y otro indicanto el `MsgType`, siendo `BatchType=3`.
+
+2. Se agregó `BatchMaxAmount` a la config del client, y su valor default está dado por:
+
+```Go
+const maxAllowedBatchSize = 8000
+
+// name and surname + document + birthdate + number + agency
+const MaxSerializedBetSize = 514 + 4 + 10 + 4 + 1
+
+const DefaultMaxBatchAmount = (maxAllowedBatchSize - 1 /*(MsgId)*/ - 1 /*(MsgType)*/ - 2 /*(BetsCount)*/) / MaxSerializedBetSize
+
+```
+
+- Se agregó un `csv.NewReader` al `struct Client`, para simular el ingreso de apuestas el cual se va consumiendo a medida que se van enviando los batches en un for loop.
