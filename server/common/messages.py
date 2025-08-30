@@ -6,13 +6,12 @@ class MessageType:
     RESULT = 1
 
 class Bet:
-    def __init__(self, name, surname, document, birthdate, number, msg_id, agency):
+    def __init__(self, name, surname, document, birthdate, number, agency):
         self.name = name
         self.surname = surname
         self.document = document
         self.birthdate = birthdate
         self.number = number
-        self.msg_id = msg_id
         self.agency = agency
     
     def into_store_bet(self) -> StoreBet:
