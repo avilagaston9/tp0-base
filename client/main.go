@@ -125,5 +125,7 @@ func main() {
 		log.Criticalf("%s", err)
 		return
 	}
-	client.StartClientLoop()
+	client.Run()
+	// Sleeping to let the container print the exit log
+	time.Sleep(100 * time.Millisecond)
 }

@@ -13,7 +13,7 @@ import (
 const maxAllowedBatchSize = 8000
 
 // name and surname + document + birthdate + number + agency
-const MaxSerializedBetSize = 512 + 4 + 10 + 4 + 1
+const MaxSerializedBetSize = 514 + 4 + 10 + 4 + 1
 
 const DefaultMaxBatchAmount = (maxAllowedBatchSize - 1 /*(MsgId)*/ - 1 /*(MsgType)*/ - 2 /*(BetsCount)*/) / MaxSerializedBetSize
 
@@ -27,10 +27,6 @@ const (
 	TypeNotReady
 	TypeWinners
 )
-
-type Message interface {
-	Type() MessageType
-}
 
 type Bet struct {
 	Name      string
@@ -77,6 +73,7 @@ func NewBet(name string, surname string, doc string, birthdate string, num strin
 	if err != nil {
 		return nil, errors.New("lottery number must be numeric")
 	}
+
 	bet := &Bet{
 		Name:      name,
 		Surname:   surname,

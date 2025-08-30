@@ -32,68 +32,13 @@ type ClientConfig struct {
 
 // Client Entity that encapsulates how
 type Client struct {
-	config  ClientConfig
-	conn    net.Conn
-	ctx     context.Context
-	cancel  context.CancelFunc
-	agency  uint8
-	batches []*Batch
-}
-
-func getBets(agency uint8) ([]*Bet, error) {
-	filePath := fmt.Sprintf(".data/agency-%d.csv", agency)
-	file, err := os.Open(filePath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open file %s: %w", filePath, err)
-	}
-	defer file.Close()
-
-	// Read the CSV
-	reader := csv.NewReader(file)
-	records, err := reader.ReadAll()
-	if err != nil {
-		return nil, fmt.Errorf("failed to read CSV: %w", err)
-	}
-
-	// Parse each row into a Bet
-	var bets []*Bet
-	for _, record := range records {
-		if len(record) != 5 {
-			return nil, fmt.Errorf("invalid record length: %v", record)
-		}
-		name, surname, document, birthdate, number := record[0], record[1], record[2], record[3], record[4]
-
-		bet, err := NewBet(name, surname, document, birthdate, number, agency)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create bet: %w", err)
-		}
-		bets = append(bets, bet)
-	}
-
-	return bets, nil
-}
-
-func getBatches(agency uint8, batchMaxAmount int) ([]*Batch, error) {
-	bets, err := getBets(agency)
-	if err != nil {
-		return nil, err
-	}
-
-	var batches []*Batch
-	for i := 0; i < len(bets); i += batchMaxAmount {
-		end := i + batchMaxAmount
-		if end > len(bets) {
-			end = len(bets)
-		}
-
-		batch := &Batch{
-			Bets: bets[i:end],
-		}
-		batches = append(batches, batch)
-	}
-
-	return batches, nil
-
+	config    ClientConfig
+	conn      net.Conn
+	ctx       context.Context
+	cancel    context.CancelFunc
+	agency    uint8
+	csvFile   *os.File
+	csvReader *csv.Reader
 }
 
 // NewClient Initializes a new client receiving the configuration
@@ -104,17 +49,21 @@ func NewClient(config ClientConfig) (*Client, error) {
 		return nil, fmt.Errorf("unable to create client: %w", err)
 	}
 
-	batches, err := getBatches(uint8(agency), config.BatchMaxAmount)
+	filePath := fmt.Sprintf(".data/agency-%d.csv", uint8(agency))
+	file, err := os.Open(filePath)
 	if err != nil {
-		return nil, fmt.Errorf("unable to create client: %w", err)
+		return nil, fmt.Errorf("failed to open file %s: %w", filePath, err)
 	}
+
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM)
+
 	return &Client{
-		config:  config,
-		ctx:     ctx,
-		cancel:  stop,
-		batches: batches,
-		agency:  uint8(agency),
+		config:    config,
+		ctx:       ctx,
+		cancel:    stop,
+		agency:    uint8(agency),
+		csvFile:   file,
+		csvReader: csv.NewReader(file),
 	}, nil
 }
 
@@ -135,58 +84,88 @@ func (c *Client) createClientSocket() error {
 	return nil
 }
 
-func (c *Client) StartClientLoop() {
-	for i, batch := range c.batches {
+func (c *Client) Run() {
+	defer c.csvFile.Close()
+
+	batchNum := 0
+	for {
 		select {
 		case <-c.ctx.Done():
 			log.Infof("action: graceful_shutdown | result: success | client_id: %v", c.config.ID)
 			return
 		default:
-			err := c.createClientSocket()
+			batch, err := c.fetchNextBatch()
+			if err == io.EOF {
+				log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
+
+				// All batches sent, request winners
+				c.requestWinners()
+				return
+			}
+			if err != nil {
+				log.Errorf("action: fetch_batch | result: fail | error: %v", err)
+				return
+			}
+
+			err = c.createClientSocket()
 			if err != nil {
 				log.Errorf("action: apuesta_enviada | result: fail | agency: %v | batch_number: %v",
-					c.agency,
-					i,
-				)
+					c.agency, batchNum)
 				return
 			}
 
 			err = c.sendMessage(batch.ToMessageBytes(uint8(rand.Intn(256))))
 			if err != nil {
+				c.conn.Close()
 				log.Errorf("action: apuesta_enviada | result: fail | agency: %v | batch_number: %v",
-					c.agency,
-					i,
-				)
+					c.agency, batchNum)
 				return
 			}
-			r, err := c.readResultMessage()
 
+			r, err := c.readResultMessage()
+			c.conn.Close()
 			if err != nil {
 				log.Errorf("action: apuesta_enviada | result: fail | agency: %v | batch_number: %v",
-					c.agency,
-					i,
-				)
-				log.Errorf("error: %v ", err)
+					c.agency, batchNum)
+				log.Errorf("error: %v", err)
 				return
 			}
-			c.conn.Close()
 			if r.Success {
-				log.Errorf("action: apuesta_enviada | result: success | agency: %v | batch_number: %v",
-					c.agency,
-					i,
-				)
+				log.Infof("action: apuesta_enviada | result: success | agency: %v | batch_number: %v",
+					c.agency, batchNum)
 			}
+			batchNum++
 		}
 	}
-	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
+}
 
-	// TODO: Check context cancellation
-	c.sendFinishedMessage()
+// fetchNextBatch reads bets until reaching batchMaxAmount or EOF
+func (c *Client) fetchNextBatch() (*Batch, error) {
+	var bets []*Bet
+	for len(bets) < c.config.BatchMaxAmount {
+		record, err := c.csvReader.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to read CSV: %w", err)
+		}
+		if len(record) != 5 {
+			return nil, fmt.Errorf("invalid record length: %v", record)
+		}
 
-	c.requestWinners()
+		bet, err := NewBet(record[0], record[1], record[2], record[3], record[4], c.agency)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create bet: %w", err)
+		}
+		bets = append(bets, bet)
+	}
 
-	// Sleeping to let the container print the exit log
-	time.Sleep(100 * time.Millisecond)
+	if len(bets) == 0 {
+		return nil, io.EOF
+	}
+
+	return &Batch{Bets: bets}, nil
 }
 
 func (c *Client) sendMessage(data []byte) error {
@@ -210,14 +189,6 @@ func (c *Client) readResultMessage() (*Result, error) {
 
 	// Decode the message
 	return DecodeResult(buf)
-}
-
-func (c *Client) sendFinishedMessage() {
-
-	c.conn.Close()
-	log.Infof("action: envio_fin | result: success | agency: %v",
-		c.agency,
-	)
 }
 
 func (c *Client) requestWinners() {
