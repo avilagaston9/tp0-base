@@ -68,6 +68,7 @@ func NewBet(name string, surname string, doc string, birthdate string, num strin
 	if err != nil {
 		return nil, errors.New("lottery number must be numeric")
 	}
+
 	bet := &Bet{
 		Name:      name,
 		Surname:   surname,
