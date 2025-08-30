@@ -13,7 +13,7 @@ import (
 const maxAllowedBatchSize = 8000
 
 // name and surname + document + birthdate + number + agency
-const MaxSerializedBetSize = 512 + 4 + 10 + 4 + 1
+const MaxSerializedBetSize = 514 + 4 + 10 + 4 + 1
 
 const DefaultMaxBatchAmount = (maxAllowedBatchSize - 1 /*(MsgId)*/ - 1 /*(MsgType)*/ - 2 /*(BetsCount)*/) / MaxSerializedBetSize
 
@@ -24,14 +24,6 @@ const (
 	TypeResult
 	TypeBatch
 )
-
-type Message interface {
-	Type() MessageType
-}
-
-func (b Bet) Type() MessageType    { return TypeBet }
-func (b Batch) Type() MessageType  { return TypeBatch }
-func (r Result) Type() MessageType { return TypeResult }
 
 type Bet struct {
 	Name      string
