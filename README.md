@@ -348,3 +348,10 @@ Por lo tanto el nuevo protocolo de comunicación de los clientes con el servidor
 - Una vez que el cliente termina de enviar todas sus apuestas, envia el mensaje `Finished` en loop hasta que el servidor responde con un `Winners`.
 - El servidor guarda registro de los clientes que se anunciaron como `Finished` en un `HashSet` interno hasta alcanzar la cantidad de clientes totales y responde con `NotReady` a cada `Finished` recibido.
 - Una vez que todos los clientes se anunciaron como `Finished`, el servidor pasa a responder con el mensaje `Winners` con los documentos según corresponda a cada agencia.
+
+### Ejercicio N°8:
+
+Para este ejercicio se realizó un pequeño cambio al servidor:
+
+- Se utilizó `threading.Thread` para ejecutar la función `__handle_client_connection()` concurrentemente.
+- Dado que las funciones `store_bets()` y `load_bets()` no son thread safe, se las protegió con un lock compartido por todos los threads, asegurandose de no agregar más de lo necesario a la zona crítica.

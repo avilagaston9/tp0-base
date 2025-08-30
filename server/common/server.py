@@ -37,7 +37,14 @@ class Server:
         logging.info("action: graceful_shutdown | result: success")
 
     def __try_accept_new_connection(self):
+        """
+        Accept new connections
+        Function blocks until a connection to a client is made.
+        Then connection created is printed and returned.
+        If the configured timeout is reached, returns None
+        """
         try:
+            # Connection arrived
             logging.info('action: accept_connections | result: in_progress')
             c, addr = self._server_socket.accept()
             logging.info(f'action: accept_connections | result: success | ip: {addr[0]}')
@@ -49,6 +56,11 @@ class Server:
         return None
 
     def __handle_client_connection(self, client_sock):
+        """
+        Read message from a specific client socket and closes the socket
+        If a problem arises in the communication with the client, the
+        client socket will also be closed
+        """
         try:
             client_sock.settimeout(SOCKET_TIMEOUT)
             addr = client_sock.getpeername()
