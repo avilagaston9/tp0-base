@@ -41,11 +41,6 @@ do
     entrypoint: /client
     environment:
       - CLI_ID=$i
-      - NOMBRE=\${NOMBRE:-GASTON}
-      - APELLIDO=\${APELLIDO:-AVILA}
-      - DOCUMENTO=\${DOCUMENTO:-41780971}
-      - NACIMIENTO=\${NACIMIENTO:-1999-03-19}
-      - NUMERO=\${NUMERO:-9999}
     networks:
       - testing_net
     depends_on:

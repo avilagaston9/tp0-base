@@ -128,7 +128,7 @@ func (c *Client) StartClientLoop() {
 				return
 			}
 			if r.Success {
-				log.Errorf("action: apuesta_enviada | result: success | agency: %v | batch_number: %v",
+				log.Infof("action: apuesta_enviada | result: success | agency: %v | batch_number: %v",
 					c.agency, batchNum)
 			}
 			batchNum++
