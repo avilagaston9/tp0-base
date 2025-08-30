@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math/rand"
 	"net"
 	"os"
 	"os/signal"
@@ -43,7 +44,7 @@ func getBets(agency uint8) ([]*Bet, error) {
 	birthdate := os.Getenv("NACIMIENTO")
 	number := os.Getenv("NUMERO")
 
-	bet, err := NewBet(name, surname, document, birthdate, number, 1, agency)
+	bet, err := NewBet(name, surname, document, birthdate, number, agency)
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +109,7 @@ func (c *Client) StartClientLoop() {
 				return
 			}
 
-			err = c.sendMessage(bet.Encode())
+			err = c.sendMessage(bet.ToMessageBytes(uint8(rand.Intn(256))))
 			if err != nil {
 				log.Errorf("action: apuesta_enviada | result: fail |  dni: %v | numero: %v",
 					bet.Document,

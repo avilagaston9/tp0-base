@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"regexp"
+	"strconv"
 	"time"
 )
 
@@ -20,10 +20,9 @@ const (
 type Bet struct {
 	Name      string
 	Surname   string
-	Document  string
+	Document  uint32
 	Birthdate string
-	Number    string
-	MsgId     uint8
+	Number    uint32
 	Agency    uint8
 }
 
@@ -32,27 +31,28 @@ type Result struct {
 	Success bool
 }
 
-func NewBet(name string, surname string, document string, birthdate string, number string, msgId uint8, agency uint8) (*Bet, error) {
+func NewBet(name string, surname string, doc string, birthdate string, num string, agency uint8) (*Bet, error) {
 	if err := ValidateName(name, surname); err != nil {
 		return nil, fmt.Errorf("invalid name: %w", err)
-	}
-	if err := ValidateDocument(document); err != nil {
-		return nil, fmt.Errorf("invalid document: %w", err)
 	}
 	_, err := time.Parse("2006-01-02", birthdate)
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse birthdate: %w", err)
 	}
-	if err := ValidateNumber(number); err != nil {
-		return nil, fmt.Errorf("invalid lottery number: %w", err)
+	document, err := strconv.ParseUint(doc, 10, 32)
+	if err != nil {
+		return nil, errors.New("document must be numeric")
+	}
+	number, err := strconv.ParseUint(num, 10, 32)
+	if err != nil {
+		return nil, errors.New("lottery number must be numeric")
 	}
 	bet := &Bet{
 		Name:      name,
 		Surname:   surname,
-		Document:  document,
+		Document:  uint32(document),
 		Birthdate: birthdate,
-		Number:    number,
-		MsgId:     msgId,
+		Number:    uint32(number),
 		Agency:    agency,
 	}
 	return bet, nil
@@ -63,61 +63,50 @@ func ValidateName(name string, surname string) error {
 		return errors.New("name and surname are required")
 	}
 
-	if len(name) > math.MaxUint16 {
+	if len(name) > math.MaxUint8 {
 		return errors.New("name too long")
 	}
 
-	if len(surname) > math.MaxUint16 {
+	if len(surname) > math.MaxUint8 {
 		return errors.New("surname too long")
 	}
 
 	return nil
 }
 
-func ValidateDocument(d string) error {
-	matched, _ := regexp.MatchString(`^\d{8}$`, string(d))
-	if !matched {
-		return errors.New("invalid document format")
-	}
-	return nil
-}
-
-func ValidateNumber(n string) error {
-	matched, _ := regexp.MatchString(`^\d{4}$`, string(n))
-	if !matched {
-		return errors.New("lottery number must be 4 digits")
-	}
-	return nil
-}
-
-func (b *Bet) Encode() []byte {
+func (b *Bet) ToMessageBytes(msgId uint8) []byte {
 	buf := new(bytes.Buffer)
+
+	// MsgID (1 byte)
+	binary.Write(buf, binary.BigEndian, msgId)
 
 	// Message type
 	binary.Write(buf, binary.BigEndian, TypeBet)
 
-	// Name and Surname (2 bytes length + variable length)
-	encodeString(buf, b.Name)
-	encodeString(buf, b.Surname)
-
-	// Document (8 bytes fixed length)
-	buf.WriteString(string(b.Document))
-
-	// Birthdate (10 bytes - Unix timestamp)
-	buf.WriteString(string(b.Birthdate))
-
-	// Lottery number (4 bytes fixed length)
-	buf.WriteString(string(b.Number))
-
-	// MsgID (1 byte) and Agency (1 byte)
-	binary.Write(buf, binary.BigEndian, b.MsgId)
-	binary.Write(buf, binary.BigEndian, b.Agency)
-
+	b.encode(buf)
 	return buf.Bytes()
 }
 
+func (b *Bet) encode(buf *bytes.Buffer) {
+	// Name and Surname (1 bytes length + variable length)
+	encodeString(buf, b.Name)
+	encodeString(buf, b.Surname)
+
+	// Document (4 bytes fixed length)
+	binary.Write(buf, binary.BigEndian, b.Document)
+
+	// Birthdate (10 bytes - Unix timestamp)
+	buf.WriteString(b.Birthdate)
+	// Lottery number (4 bytes fixed length)
+	binary.Write(buf, binary.BigEndian, b.Number)
+
+	// Agency (1 byte)
+	binary.Write(buf, binary.BigEndian, b.Agency)
+
+}
+
 func encodeString(buf *bytes.Buffer, s string) {
-	binary.Write(buf, binary.BigEndian, uint16(len(s)))
+	binary.Write(buf, binary.BigEndian, uint8(len(s)))
 	buf.WriteString(s)
 }
 

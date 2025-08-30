@@ -48,10 +48,10 @@ class Server:
         try:
             client_sock.settimeout(SOCKET_TIMEOUT)
             addr = client_sock.getpeername()
-            bet = read_message(client_sock)
+            msg_id, bet = read_message(client_sock)
             store_bets([bet.into_store_bet()])
             logging.info(f'action: apuesta_almacenada | result: success | dni: {bet.document} | numero: {bet.number}')
-            result = Result(bet.msg_id, True)
+            result = Result(msg_id, True)
             write_result(client_sock, result)
         except socket.timeout:
             pass
