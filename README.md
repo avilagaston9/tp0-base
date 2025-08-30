@@ -285,3 +285,66 @@ const DefaultMaxBatchAmount = (maxAllowedBatchSize - 1 /*(MsgId)*/ - 1 /*(MsgTyp
 ```
 
 - Se agregó un `csv.NewReader` al `struct Client`, para simular el ingreso de apuestas el cual se va consumiendo a medida que se van enviando los batches en un for loop.
+
+
+### Ejercicio N°7:
+
+Se agregaron 3 nuevos mensajes al protocolo:
+
+
+#### Finished
+
+Sirve para notificar al servidor que la agencia terminó de enviar apuestas.
+
+```Go
+type Finished struct {
+	Agency uint8
+}
+```
+
+
+**Formato de serialización:**
+
+- Un byte para indicar el número de agencia.
+- Como los demás mensajes, va precedido por su `MsgId` y `MsgType`. (`FinishedType=4)
+
+
+#### Winners
+
+
+Sirve para notificar al cliente sus ganadores.
+
+```Go
+type Winners struct {
+	Documents []uint32
+}
+```
+
+
+**Formato de serialización:**
+
+- 2 bytes para indicar la cantidad de documentos.
+- Todos los documentos concatenados, serializados igual que en el punto 5.
+- Va precedido por el `MsgId` correspondiente al mensage `Finished` que está respondiendo y su `MsgType`. (`WinnersType=5)
+
+
+#### NotReady
+
+Sirve para indicar al cliente que las demás agencias no han terminado aún de enviar sus apuestas.
+
+```Go
+type NotReady struct{}
+```
+
+**Formato de serialización:**
+
+- Solo consiste del `MsgId` correspondiente al mensage `Finished` que está respondiendo y su `MsgType`. (`NotReadyType=6)
+
+
+### Protocolo
+
+Por lo tanto el nuevo protocolo de comunicación de los clientes con el servidor es el siguiente:
+
+- Una vez que el cliente termina de enviar todas sus apuestas, envia el mensaje `Finished` en loop hasta que el servidor responde con un `Winners`.
+- El servidor guarda registro de los clientes que se anunciaron como `Finished` en un `HashSet` interno hasta alcanzar la cantidad de clientes totales y responde con `NotReady` a cada `Finished` recibido.
+- Una vez que todos los clientes se anunciaron como `Finished`, el servidor pasa a responder con el mensaje `Winners` con los documentos según corresponda a cada agencia.
