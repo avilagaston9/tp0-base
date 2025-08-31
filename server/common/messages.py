@@ -1,6 +1,15 @@
 from datetime import datetime
 from .utils import Bet as StoreBet
 
+class WriteError(Exception):
+    pass
+
+class ReadError(Exception):
+    pass
+
+class MsgTypeError(Exception):
+    pass
+
 class MessageType:
     BET = 0
     RESULT = 1
@@ -29,7 +38,7 @@ def read_message(conn):
     if msg_type == MessageType.BET:
         return msg_id, read_bet(conn)
     else:
-        raise ValueError(f"Unknown message type: {msg_type}")
+        raise MsgTypeError(f"Unknown message type: {msg_type}")
 
 def read_bet(conn) -> Bet:
     name_len = int.from_bytes(read_bytes(conn, 1), byteorder='big')
@@ -55,17 +64,19 @@ def read_bytes(conn, num_bytes: int) -> bytes:
     while len(buffer) < num_bytes:
         chunk = conn.recv(num_bytes - len(buffer))
         if not chunk:
-            raise ConnectionError("Connection closed")
+            raise ReadError("Failed to read from socket")
         buffer.extend(chunk)
     return bytes(buffer)
 
-
 def write_result(conn, result: Result):
-    message_bytes = (
-        bytes([MessageType.RESULT]) +
-        bytes([result.msg_id]) +
-        bytes([int(result.success)])
-    )
-    conn.sendall(message_bytes)
+    try:
+        message_bytes = (
+            bytes([MessageType.RESULT]) +
+            bytes([result.msg_id]) +
+            bytes([int(result.success)])
+        )
+        conn.sendall(message_bytes)
+    except Exception as e:
+        raise WriteError("Failed to write message") from e
 
 

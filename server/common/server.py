@@ -1,7 +1,7 @@
 import socket
 import logging
 import signal
-from .messages import read_message, Result, write_result
+from .messages import read_message, Result, write_result, ReadError, MsgTypeError, WriteError
 from .utils import store_bets, Bet as StoreBet
 
 SOCKET_TIMEOUT = 0.5  # seconds
@@ -53,10 +53,14 @@ class Server:
             logging.info(f'action: apuesta_almacenada | result: success | dni: {bet.document} | numero: {bet.number}')
             result = Result(msg_id, True)
             write_result(client_sock, result)
-        except socket.timeout:
-            pass
+        except WriteError as e:
+            logging.error(f"action: send_message | result: fail | error: {e}]")
+        except ReadError as e:
+            logging.error(f"action: receive_message | result: fail | error: {e}]")
+        except MsgTypeError as e:
+            logging.error(f"action: receive_message | result: fail | error: {e}]")
         except Exception as e:
-            logging.error(f"action: receive_message | result: fail | error: {e}")
+            logging.error(f"action: handle_connection | result: fail | error: {e}")
         finally:
             client_sock.close()
             logging.info(f"action: close_client_socket | result: success | ip: {addr[0]}")
