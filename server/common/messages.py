@@ -1,8 +1,18 @@
 from datetime import datetime
 from .utils import Bet as StoreBet
 
+<<<<<<< HEAD
 class Message:
     """Base class for all message types."""
+=======
+class WriteError(Exception):
+    pass
+
+class ReadError(Exception):
+    pass
+
+class MsgTypeError(Exception):
+>>>>>>> ej5
     pass
 
 class MessageType:
@@ -41,7 +51,7 @@ def read_message(conn):
     elif msg_type == MessageType.BATCH:
         return msg_id, read_batch(conn)
     else:
-        raise ValueError(f"Unknown message type: {msg_type}")
+        raise MsgTypeError(f"Unknown message type: {msg_type}")
 
 def read_batch(conn) -> Batch:
     num_bets = int.from_bytes(read_bytes(conn, 2), byteorder='big')
@@ -76,17 +86,19 @@ def read_bytes(conn, num_bytes: int) -> bytes:
     while len(buffer) < num_bytes:
         chunk = conn.recv(num_bytes - len(buffer))
         if not chunk:
-            raise ConnectionError("Connection closed")
+            raise ReadError("Failed to read from socket")
         buffer.extend(chunk)
     return bytes(buffer)
 
-
 def write_result(conn, result: Result):
-    message_bytes = (
-        bytes([MessageType.RESULT]) +
-        bytes([result.msg_id]) +
-        bytes([int(result.success)])
-    )
-    conn.sendall(message_bytes)
+    try:
+        message_bytes = (
+            bytes([MessageType.RESULT]) +
+            bytes([result.msg_id]) +
+            bytes([int(result.success)])
+        )
+        conn.sendall(message_bytes)
+    except Exception as e:
+        raise WriteError("Failed to write message") from e
 
 

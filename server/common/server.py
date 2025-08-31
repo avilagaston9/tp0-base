@@ -1,7 +1,7 @@
 import socket
 import logging
 import signal
-from .messages import read_message, Result, write_result, Bet, Batch, MessageType
+from .messages import read_message, Result, write_result, ReadError, MsgTypeError, WriteError, Bet, Batch, MessageType
 from .utils import store_bets, Bet as StoreBet
 
 SOCKET_TIMEOUT = 0.5  # seconds
