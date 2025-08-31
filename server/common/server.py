@@ -71,10 +71,14 @@ class Server:
             msg_id, msg = read_message(client_sock)
             result = handle_message(msg_id, msg)
             write_result(client_sock, result)
-        except socket.timeout:
-            pass
-        except OSError as e:
-            logging.error("action: receive_message | result: fail | error: {e}")
+        except WriteError as e:
+            logging.error(f"action: send_message | result: fail | error: {e}]")
+        except ReadError as e:
+            logging.error(f"action: receive_message | result: fail | error: {e}]")
+        except MsgTypeError as e:
+            logging.error(f"action: receive_message | result: fail | error: {e}]")
+        except Exception as e:
+            logging.error(f"action: handle_connection | result: fail | error: {e}")
         finally:
             client_sock.close()
             logging.info(f"action: close_client_socket | result: success | ip: {addr[0]}")

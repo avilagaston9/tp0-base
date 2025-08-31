@@ -1,10 +1,7 @@
 from datetime import datetime
 from .utils import Bet as StoreBet
 
-<<<<<<< HEAD
-class Message:
-    """Base class for all message types."""
-=======
+
 class WriteError(Exception):
     pass
 
@@ -12,7 +9,10 @@ class ReadError(Exception):
     pass
 
 class MsgTypeError(Exception):
->>>>>>> ej5
+    pass
+
+class Message:
+    """Base class for all message types."""
     pass
 
 class MessageType:
