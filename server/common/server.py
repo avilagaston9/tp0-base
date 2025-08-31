@@ -55,8 +55,8 @@ class Server:
             write_result(client_sock, result)
         except socket.timeout:
             pass
-        except OSError as e:
-            logging.error("action: receive_message | result: fail | error: {e}")
+        except Exception as e:
+            logging.error(f"action: receive_message | result: fail | error: {e}")
         finally:
             client_sock.close()
             logging.info(f"action: close_client_socket | result: success | ip: {addr[0]}")
