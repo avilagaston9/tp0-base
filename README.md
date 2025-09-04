@@ -353,5 +353,6 @@ Por lo tanto el nuevo protocolo de comunicación de los clientes con el servidor
 
 Para este ejercicio se realizó un pequeño cambio al servidor:
 
-- Se utilizó `threading.Thread` para ejecutar la función `__handle_client_connection()` concurrentemente.
-- Dado que las funciones `store_bets()` y `load_bets()` no son thread safe, se las protegió con un lock compartido por todos los threads, asegurandose de no agregar más de lo necesario a la zona crítica.
+- Se utilizó `threading.Thread` para ejecutar la función `__handle_client_connection()` concurrentemente. 
+- Dado que las funciones `store_bets()` y `load_bets()` tanto como las operaciones al `HashSet` interno no son thread safe, se las protegió con un lock compartido por todos los threads, asegurandose de no agregar más de lo necesario a la zona crítica.
+- Como estas operaciones no son cpu-intensive y cada thread esta la mayor parte del tiempo bloqueados en operaciones de sockets, para este ejercicio se puede utilizar `threading` para concurrencia.

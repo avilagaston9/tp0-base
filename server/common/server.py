@@ -95,8 +95,12 @@ class Server:
 
     # TODO: Send msgId
     def _process_finished_agency(self, client_sock, agency):
-        self._finished_agencies.add(agency)
-        if len(self._finished_agencies) == self._agency_count:
+        # Aquire lock to update finished agencies set
+        with bets_lock:
+            self._finished_agencies.add(agency)
+            finished_agencies_count = len(self._finished_agencies)
+
+        if finished_agencies_count == self._agency_count:
             logging.info("action: sorteo | result: success")
             winner_documents = get_winner_documents(agency)
             client_sock.sendall(winner_documents.to_bytes())
